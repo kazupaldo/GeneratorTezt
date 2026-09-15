@@ -41,7 +41,7 @@ You can use prefix commands like `+generate alt` or native Discord slash command
 | `+autogen` | Open the admin-only continuous auto-generation panel |
 | `+autogen interval <seconds>` | Set the auto-generation interval while disabled |
 | `+autogen priority <type,type,...>` | Set the rotation priority while disabled |
-| `+autopassword on [type] [#channel]` | Automatically change passwords for selected types; optionally post a masked notice |
+| `+autopassword on [type] [#channel]` | Automatically change passwords for selected types and update the result channel |
 | `+autopassword off` | Disable automatic password changes |
 | `+autopassword status` | Show automatic password-change settings |
 | `+key` | Add, inspect, switch, or remove personal encrypted API keys |
@@ -75,11 +75,11 @@ must be configured before a key can be saved.
 
 Automatic password changes are disabled by default. A server manager can enable
 them with `+autopassword on`, limit them to one type with
-`+autopassword on alt`, and choose an optional channel for a **masked**
-password-change notice with `+autopassword on alt #password-changes`. The full
-new credentials are always sent privately to the account recipient. Generated
-automatic passwords use the format `KazuShop` plus digit-letter-digit-letter,
-for example `KazuShop8H3G`.
+`+autopassword on alt`, and choose a result channel with
+`+autopassword on alt #password-changes`. Each generated account gets its own
+password-change task, so one slow or failed Roblox request does not block the
+next account. Generated automatic passwords use the format `KazuShop` plus
+digit-letter-digit-letter, for example `KazuShop8H3G`.
 
 History exports are manager-only. Use
 `+history export user:pass --channel #private-export` or the `/history` export
