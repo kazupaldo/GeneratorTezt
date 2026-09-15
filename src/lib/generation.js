@@ -54,6 +54,7 @@ export async function generateAccount(client, {
   guildId,
   fallbackChannel,
   preflight,
+  deferAutomaticPasswordChange = false,
 }) {
   const apiKey = requireUserApiKey(user?.id);
   await ensureDeliveryReady({
@@ -66,32 +67,48 @@ export async function generateAccount(client, {
   });
   await verifyGenerationEligibility(type, preflight, apiKey);
   const generatedAccount = await generate(type, apiKey);
-  const passwordChange = await applyAutomaticPasswordChange({
+  const changePasswordTask = applyAutomaticPasswordChange({
     client,
     guildId,
     type,
     account: generatedAccount,
     ownerId: user?.id,
   });
-  const acc = passwordChange.account;
-  try {
-    recordGeneratedAccount(acc);
-  } catch (error) {
-    console.error('Could not save generated account export history:', error.message);
-  }
-  recordAccountOwner(acc.username, user?.id, guildId);
-  const voice = await checkVoiceChat(acc.cookie); // null if the lookup fails
-  await logGeneration(client, { user, type, acc, guildId });
-  return {
-    ...buildAccountPayload(acc, {
-      ownerId: user?.id,
-      guildId,
+  const finalize = async (passwordChange) => {
+    const acc = passwordChange.account;
+    try {
+      recordGeneratedAccount(acc);
+    } catch (error) {
+      console.error('Could not save generated account export history:', error.message);
+    }
+    recordAccountOwner(acc.username, user?.id, guildId);
+    const voice = await checkVoiceChat(acc.cookie); // null if the lookup fails
+    await logGeneration(client, { user, type, acc, guildId });
+    return {
+      ...buildAccountPayload(acc, {
+        ownerId: user?.id,
+        guildId,
+        voice,
+        includeCredentials: false,
+      }),
+      account: acc,
       voice,
-      includeCredentials: false,
-    }),
-    account: acc,
-    voice,
-    forcePrivate: isAutoPasswordEnabledForType(guildId, type),
-    passwordChange,
+      forcePrivate: isAutoPasswordEnabledForType(guildId, type),
+      passwordChange,
+    };
   };
+
+  // Auto-generation uses this mode so the run lock is released while one
+  // account waits on Roblox. Every account still gets its own final payload
+  // after its own password-change request completes.
+  if (deferAutomaticPasswordChange && isAutoPasswordEnabledForType(guildId, type)) {
+    return {
+      account: generatedAccount,
+      forcePrivate: true,
+      passwordChange: { deferred: true },
+      finalizedPromise: changePasswordTask.then(finalize),
+    };
+  }
+
+  return finalize(await changePasswordTask);
 }
